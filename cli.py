@@ -61,6 +61,15 @@ def view_routing_table(routers):
             print(f"{net:<20} | {info['next_hop']:<20} | {info['cost']:<5}")
             
         print("-" * 50)
+
+        summarized_table = data.get("summarized_table", {})
+        if summarized_table:
+            print(f"\n--- Tabela Sumarizada (A ser Anunciada) ---")
+            print(f"{'Destino/Rede':<20} | {'Next Hop':<20} | {'Custo':<5}")
+            print("-" * 50)
+            for net, info in summarized_table.items():
+                print(f"{net:<20} | {info['next_hop']:<20} | {info['cost']:<5}")
+            print("-" * 50)
     except requests.exceptions.RequestException as e:
         print(f"Erro de conexão ao consultar roteador: {e}")
 

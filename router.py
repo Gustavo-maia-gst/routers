@@ -61,6 +61,8 @@ class Router:
 
     def get_routes(self):
         """Endpoint para visualizar a tabela de roteamento atual."""
+        sumarized_table = self.summarize_table()
+
         return jsonify(
             {
                 "name": self.name,
@@ -69,6 +71,7 @@ class Router:
                 "my_address": self.address,
                 "update_interval": self.update_interval,
                 "routing_table": self.routing_table,  # Exibe a tabela de roteamento atual (a ser implementada)
+                "summarized_table": sumarized_table,
             }
         )
 
@@ -98,6 +101,17 @@ class Router:
 
         cost = neighbor["cost"]
         has_changes = False
+        
+        # Remove rotas que aprendemos deste vizinho mas que ele não anuncia mais (ex: foram sumarizadas)
+        routes_to_delete = []
+        for net, info in self.routing_table.items():
+            if info["next_hop"] == sender_address and net not in sender_table:
+                routes_to_delete.append(net)
+                
+        for net in routes_to_delete:
+            del self.routing_table[net]
+            has_changes = True
+
         for net, data in sender_table.items():
             current_routing = self.routing_table.get(net)
 
@@ -128,101 +142,101 @@ class Router:
 
         return jsonify({"status": "success", "message": "Update received"}), 200
 
-    def make_table_for(self, neighbor):
-        table = {}
-        for net, info in self.routing_table.items():
-            if info["next_hop"] != neighbor:
-                table[net] = {"cost": info["cost"]}
-            else:
-                table[net] = {
-                    "cost": float("inf"),
-                }
-        return table
+    def ip_to_int(self, ip: str) -> int:
+        n = 0
+        for part in ip.split("."):
+            n = (n << 8) | int(part)
+        return n
 
-    def _ip_to_bin(self, ip: str) -> str:
-        parts = ip.split('.')
-        return ''.join([f"{int(p):08b}" for p in parts])
+    def int_to_ip(self, n: int) -> str:
+        return ".".join(str((n >> (8 * i)) & 0xFF) for i in reversed(range(4)))
 
-    def _bin_to_ip(self, b: str) -> str:
-        parts = [str(int(b[i:i+8], 2)) for i in range(0, 32, 8)]
-        return '.'.join(parts)
-        
-    def _summarize_routes(self):
-        """Resume rotas agrupando sub-redes encontrando o prefixo comum iterativamente."""
-        routes_by_next_hop = {}
-        for net_str, info in self.routing_table.items():
-            cost = info["cost"]
-            next_hop = info["next_hop"]
+    def can_merge(self, net1: str, net2: str):
+        ip1, mask1 = net1.split("/")
+        ip2, mask2 = net2.split("/")
 
-            if next_hop not in routes_by_next_hop:
-                routes_by_next_hop[next_hop] = {}
-            if cost not in routes_by_next_hop[next_hop]:
-                routes_by_next_hop[next_hop][cost] = []
+        mask1 = int(mask1)
+        mask2 = int(mask2)
 
-            # net_str is like "10.0.1.0/24"
-            ip_str, mask_str = net_str.split('/')
-            bin_ip = self._ip_to_bin(ip_str)
-            mask = int(mask_str)
-            routes_by_next_hop[next_hop][cost].append((bin_ip, mask))
+        if mask1 != mask2:
+            return None  # tamanhos diferentes
 
+        base1 = self.ip_to_int(ip1)
+        base2 = self.ip_to_int(ip2)
+
+        size = 1 << (32 - mask1)
+
+        # precisam ser consecutivos
+        if abs(base1 - base2) != size:
+            return None
+
+        # bit que muda precisa ser exatamente o do prefixo
+        diff = base1 ^ base2
+        if diff != size:
+            return None
+
+        new_base = min(base1, base2) & ~(size)
+        new_mask = mask1 - 1
+
+        return f"{self.int_to_ip(new_base)}/{new_mask}"
+
+    def summarize_table(self, exclude_neighbor: str = None):
         new_table = {}
-        for next_hop, costs in routes_by_next_hop.items():
-            for cost, networks in costs.items():
-                if not networks:
-                    continue
-                
-                merged = True
-                while merged:
-                    merged = False
-                    networks.sort() # Sort by binary IP
-                    
-                    next_networks = []
-                    skip_next = False
-                    
-                    i = 0
-                    while i < len(networks):
-                        if i < len(networks) - 1:
-                            net1, mask1 = networks[i]
-                            net2, mask2 = networks[i+1]
-                            
-                            # Can only merge if masks are equal
-                            if mask1 == mask2:
-                                bit_idx = mask1 - 1
-                                if net1[:bit_idx] == net2[:bit_idx] and net1[bit_idx] == '0' and net2[bit_idx] == '1':
-                                    # Merge successful
-                                    next_networks.append((net1, mask1 - 1))
-                                    merged = True
-                                    i += 2
-                                    continue
-                        
-                        next_networks.append(networks[i])
-                        i += 1
-                        
-                    networks = next_networks
-                
-                # Add all resulting summarized networks to the table
-                for bin_ip, mask in networks:
-                    # Ensure bits after mask are zero
-                    masked_bin_ip = bin_ip[:mask].ljust(32, '0')
-                    summarized_ip = self._bin_to_ip(masked_bin_ip)
-                    new_table[f"{summarized_ip}/{mask}"] = {"cost": cost, "next_hop": next_hop}
-        
-        return new_table
+
+        # copia só o que pode ser anunciado pra esse vizinho
+        for net, info in self.routing_table.items():
+            if exclude_neighbor is not None and info["next_hop"] == exclude_neighbor:
+                continue
+            new_table[net] = info.copy()
+
+        changed = True
+        while changed:
+            changed = False
+            nets = list(new_table.keys())
+
+            for i in range(len(nets)):
+                for j in range(i + 1, len(nets)):
+                    n1 = nets[i]
+                    n2 = nets[j]
+
+                    r1 = new_table[n1]
+                    r2 = new_table[n2]
+
+                    # só sumariza se next hop igual
+                    if r1["next_hop"] != r2["next_hop"]:
+                        continue
+
+                    merged = self.can_merge(n1, n2)
+                    if merged:
+                        cost = max(r1["cost"], r2["cost"])
+                        hop = r1["next_hop"]
+
+                        del new_table[n1]
+                        del new_table[n2]
+
+                        new_table[merged] = {
+                            "cost": cost,
+                            "next_hop": hop
+                        }
+
+                        changed = True
+                        break
+                if changed:
+                    break
+
+        return new_table        
 
     def send_updates_to_neighbors(self):
-        summarized_table = self._summarize_routes()
         for neighbor in self.neighbors:
+            summarized_table = self.summarize_table(neighbor["address"])
+
             url = f"http://{neighbor['address']}/receive_update"
 
             payload = {
                 "sender_address": self.address,
-                # We need to adapt make_table_for to work with the summarized table 
-                # or just use the summarized table if make_table_for is no longer needed
-                # For split horizon we need to filter out routes learned from this neighbor
                 "routing_table": {
                      net: {"cost": info["cost"]} 
                      for net, info in summarized_table.items() 
-                     if info["next_hop"] != neighbor["address"]
                 }
             }
 
