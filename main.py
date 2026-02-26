@@ -14,7 +14,7 @@ log = logging.getLogger("werkzeug")
 log.setLevel(logging.ERROR)
 
 
-def create_app(cfg: RouterConfig, update_interval=1, use_cli=False, split_horizon=True):
+def create_app(cfg: RouterConfig, update_interval=1, use_cli=False, split_horizon=True, fail_protection=True):
     import sys
     import os
     import tempfile
@@ -43,7 +43,7 @@ def create_app(cfg: RouterConfig, update_interval=1, use_cli=False, split_horizo
     print(f"Vizinhos Diretos: {list(map(lambda x: x['address'], cfg.neighbors))}")
 
     app = Flask(cfg.name)
-    router_instance = Router(cfg, update_interval, split_horizon)
+    router_instance = Router(cfg, update_interval, split_horizon, fail_protection)
 
     @app.route("/routes", methods=["GET"])
     def get_routes():
@@ -71,7 +71,7 @@ if __name__ == "__main__":
     args = parse_args()
     if args.is_filled():
         router = args.to_router_config()
-        create_app(router, args.interval, args.cli, args.split_horizon)
+        create_app(router, args.interval, args.cli, args.split_horizon, args.fail_protection)
         print("Finalizando o servidor")
         exit(0)
 
@@ -90,7 +90,7 @@ if __name__ == "__main__":
 
     processes = []
     for router in network.routers:
-        p = Process(target=create_app, args=(router, args.interval, args.cli, args.split_horizon))
+        p = Process(target=create_app, args=(router, args.interval, args.cli, args.split_horizon, args.fail_protection))
         p.daemon = True # To ensure they exit if main crashes
         p.start()
         processes.append(p)

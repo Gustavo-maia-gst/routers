@@ -20,13 +20,14 @@ class Router:
         with open(os.path.join(log_dir, "global_routers.log"), "a") as f:
             f.write(msg + "\n")
 
-    def __init__(self, cfg: RouterConfig, update_interval=1, split_horizon=True):
+    def __init__(self, cfg: RouterConfig, update_interval=1, split_horizon=True, fail_protection=True):
         self.name = cfg.name
         self.address = cfg.address
         self.neighbors = cfg.neighbors
         self.my_network = cfg.network
         self.update_interval = update_interval
         self.split_horizon = split_horizon
+        self.fail_protection = fail_protection
         self.is_active = True
 
         self.routing_table = {}
@@ -113,14 +114,15 @@ class Router:
         has_changes = False
         
         # Remove rotas que aprendemos deste vizinho mas que ele não anuncia mais (ex: foram sumarizadas)
-        routes_to_delete = []
-        for net, info in self.routing_table.items():
-            if info["next_hop"] == sender_address and net not in sender_table:
-                routes_to_delete.append(net)
-                
-        for net in routes_to_delete:
-            del self.routing_table[net]
-            has_changes = True
+        if self.fail_protection:
+            routes_to_delete = []
+            for net, info in self.routing_table.items():
+                if info["next_hop"] == sender_address and net not in sender_table:
+                    routes_to_delete.append(net)
+                    
+            for net in routes_to_delete:
+                del self.routing_table[net]
+                has_changes = True
 
         for net, data in sender_table.items():
             current_routing = self.routing_table.get(net)
@@ -246,6 +248,9 @@ class Router:
 
     def _handle_neighbor_down(self, neighbor_address: str):
         """Seta o custo de rotas atravessando um vizinho inativo para infinito."""
+        if not self.fail_protection:
+            return
+
         has_changes = False
         for net, info in self.routing_table.items():
             if info["next_hop"] == neighbor_address and info["cost"] != float('inf'):

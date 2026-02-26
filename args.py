@@ -12,6 +12,7 @@ class Args:
     interval: int
     cli: bool
     split_horizon: bool
+    fail_protection: bool
 
     def is_filled(self) -> bool:
         return (
@@ -47,6 +48,13 @@ def parse_args() -> Args:
         dest="split_horizon",
         default=True,
         help="Desativa o mecanismo de Split Horizon (padrão é ativado).",
+    )
+    parser.add_argument(
+        "--no-fail-protection",
+        action="store_false",
+        dest="fail_protection",
+        default=True,
+        help="Desativa mecanismos de proteção de falhas (implicit withdrawal e infinity cost).",
     )
 
     parser.add_argument(
