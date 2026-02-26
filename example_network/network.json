@@ -1,0 +1,38 @@
+[
+  {
+    "name": "RouterA",
+    "network": "10.0.0.0/24",
+    "address": "127.0.0.1:5000",
+    "config_file": "example_network/router_a.csv"
+  },
+  {
+    "name": "RouterB",
+    "network": "10.0.1.0/24",
+    "address": "127.0.0.1:5001",
+    "config_file": "example_network/router_b.csv"
+  },
+  {
+    "name": "RouterC",
+    "network": "10.0.2.0/24",
+    "address": "127.0.0.1:5002",
+    "config_file": "example_network/router_c.csv"
+  },
+  {
+    "name": "RouterD",
+    "network": "10.0.3.0/24",
+    "address": "127.0.0.1:5003",
+    "config_file": "example_network/router_d.csv"
+  },
+  {
+    "name": "RouterE",
+    "network": "10.0.4.0/24",
+    "address": "127.0.0.1:5004",
+    "config_file": "example_network/router_e.csv"
+  },
+  {
+    "name": "RouterF",
+    "network": "10.0.5.0/24",
+    "address": "127.0.0.1:5005",
+    "config_file": "example_network/router_f.csv"
+  }
+]
