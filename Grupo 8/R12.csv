@@ -1,0 +1,2 @@
+neighbor_address,cost
+192.168.0.6:5000,11
