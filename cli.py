@@ -125,6 +125,22 @@ def trace_packet(trace_id):
         print("Nenhum registro encontrado para esse pacote nos logs.")
     print("-" * 60)
 
+def toggle_router(routers):
+    r = prompt_router(routers)
+    if not r: return
+    
+    try:
+        url = f"http://{r['address']}/toggle"
+        res = requests.post(url, timeout=5)
+        if res.status_code == 200:
+            data = res.json()
+            estado = "ON" if data["is_active"] else "OFF"
+            print(f"\n[+] Roteador {r['name']} alternado para: {estado}")
+        else:
+             print(f"\n[-] Falha ao alternar status do roteador. HTTP {res.status_code}")
+    except requests.exceptions.RequestException as e:
+        print(f"Erro de conexão ao acessar o roteador: {e}")
+
 def view_logs():
     log_file = os.path.join(tempfile.gettempdir(), "router_logs", "global_routers.log")
     if not os.path.exists(log_file):
@@ -153,10 +169,11 @@ def main():
         print("1. Consultar Tabela de Roteamento")
         print("2. Enviar Pacote (Send)")
         print("3. Visualizar Todos os Logs (Visão Vim)")
-        print("4. Sair")
+        print("4. Ligar/Desligar Roteador (Simular Queda)")
+        print("5. Sair")
         print("="*40)
         
-        choice = input("Selecione uma opção [1-4]: ")
+        choice = input("Selecione uma opção [1-5]: ")
         
         if choice == '1':
             view_routing_table(routers)
@@ -164,7 +181,9 @@ def main():
             send_packet(routers)
         elif choice == '3':
             view_logs()
-        elif choice == '4' or choice.lower() == 'q':
+        elif choice == '4':
+            toggle_router(routers)
+        elif choice == '5' or choice.lower() == 'q':
             print("Encerrando CLI...")
             break
         else:

@@ -20,12 +20,14 @@ class Router:
         with open(os.path.join(log_dir, "global_routers.log"), "a") as f:
             f.write(msg + "\n")
 
-    def __init__(self, cfg: RouterConfig, update_interval=1):
+    def __init__(self, cfg: RouterConfig, update_interval=1, split_horizon=True):
         self.name = cfg.name
         self.address = cfg.address
         self.neighbors = cfg.neighbors
         self.my_network = cfg.network
         self.update_interval = update_interval
+        self.split_horizon = split_horizon
+        self.is_active = True
 
         self.routing_table = {}
         self.routing_table[self.my_network] = {"cost": 0, "next_hop": self.address}
@@ -51,6 +53,10 @@ class Router:
         """Loop que envia atualizações de roteamento em intervalos regulares."""
         while True:
             time.sleep(self.update_interval)
+            
+            if not self.is_active:
+                continue
+
             self.log(
                 f"[{time.ctime()}] Enviando atualizações periódicas para os vizinhos..."
             )
@@ -66,6 +72,7 @@ class Router:
         return jsonify(
             {
                 "name": self.name,
+                "is_active": self.is_active,
                 "vizinhos": self.neighbors,
                 "my_network": self.my_network,
                 "my_address": self.address,
@@ -81,6 +88,9 @@ class Router:
 
     def receive_update(self, update_data):
         """Endpoint que recebe atualizações de roteamento de um vizinho."""
+        if not self.is_active:
+            return jsonify({"error": "Router offline"}), 503
+
         if not update_data:
             return jsonify({"error": "Invalid request"}), 400
 
@@ -127,10 +137,18 @@ class Router:
                 or current_routing["cost"] > cost + data["cost"]
             )
 
+            # Se a rota vem com infinito e o sender é nosso next_hop atual, herdamos o infinito, a menos que seja para nós mesmos
+            if data["cost"] == float('inf') and current_routing and current_routing["next_hop"] == sender_address and net != self.my_network:
+                should_update_route = True
+                
+            # Só atualiza a rota se não for atingir o infinito pra sempre (evita loop). 
+            # Mas permitiremos infinito explícito pra anunciar morte
             if should_update_route:
                 has_changes = True
+                # Propaga o infinito somando nada a ele pra não bugar float, ou soma o custo se for numérico
+                new_cost = float('inf') if data["cost"] == float('inf') else cost + data["cost"]
                 self.routing_table[net] = {
-                    "cost": cost + data["cost"],
+                    "cost": new_cost,
                     "next_hop": sender_address,
                 }
 
@@ -183,9 +201,9 @@ class Router:
     def summarize_table(self, exclude_neighbor: str = None):
         new_table = {}
 
-        # copia só o que pode ser anunciado pra esse vizinho
         for net, info in self.routing_table.items():
-            if exclude_neighbor is not None and info["next_hop"] == exclude_neighbor:
+            # Se o split horizon estiver ativo e o next hop for o vizinho que estamos enviando a atualização, pulamos
+            if self.split_horizon and exclude_neighbor is not None and info["next_hop"] == exclude_neighbor:
                 continue
             new_table[net] = info.copy()
 
@@ -226,6 +244,17 @@ class Router:
 
         return new_table        
 
+    def _handle_neighbor_down(self, neighbor_address: str):
+        """Seta o custo de rotas atravessando um vizinho inativo para infinito."""
+        has_changes = False
+        for net, info in self.routing_table.items():
+            if info["next_hop"] == neighbor_address and info["cost"] != float('inf'):
+                info["cost"] = float('inf')
+                has_changes = True
+        
+        if has_changes:
+            self.log(f"Vizinho {neighbor_address} presumido offline. Rotas ajustadas para custo infinito.")
+
     def send_updates_to_neighbors(self):
         for neighbor in self.neighbors:
             summarized_table = self.summarize_table(neighbor["address"])
@@ -242,9 +271,12 @@ class Router:
 
             try:
                 self.log(f"Enviando tabela para {neighbor['address']}")
-                requests.post(url, json=payload, timeout=5)
+                res = requests.post(url, json=payload, timeout=5)
+                if res.status_code == 503:
+                    raise requests.exceptions.RequestException("Serviço Indisponível (Router Offline)")
             except requests.exceptions.RequestException as e:
                 self.log(f"Não foi possível conectar ao vizinho {neighbor}. Erro: {e}")
+                self._handle_neighbor_down(neighbor["address"])
 
     def _find_route(self, destination: str):
          dest_ip = destination.split('/')[0] if '/' in destination else destination
@@ -271,6 +303,9 @@ class Router:
 
     def send(self, payload):
         """Recebe payload e envia para o roteador destino."""
+        if not self.is_active:
+            return jsonify({"error": "Router offline"}), 503
+
         if not payload:
             return jsonify({"error": "Invalid request"}), 400
         

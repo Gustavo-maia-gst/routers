@@ -11,6 +11,7 @@ class Args:
     network: str
     interval: int
     cli: bool
+    split_horizon: bool
 
     def is_filled(self) -> bool:
         return (
@@ -39,6 +40,13 @@ def parse_args() -> Args:
         "--cli",
         action="store_true",
         help="Inicia a interface de linha de comando iterativa para depuração.",
+    )
+    parser.add_argument(
+        "--no-split-horizon",
+        action="store_false",
+        dest="split_horizon",
+        default=True,
+        help="Desativa o mecanismo de Split Horizon (padrão é ativado).",
     )
 
     parser.add_argument(
