@@ -14,7 +14,7 @@ log = logging.getLogger("werkzeug")
 log.setLevel(logging.ERROR)
 
 
-def create_app(cfg: RouterConfig, update_interval=1, use_cli=False, split_horizon=True, fail_protection=True):
+def create_app(cfg: RouterConfig, update_interval=1, use_cli=False, split_horizon=True, fail_protection=True, start_disabled=False):
     import sys
     import os
     import tempfile
@@ -33,17 +33,19 @@ def create_app(cfg: RouterConfig, update_interval=1, use_cli=False, split_horizo
         raise ValueError(f"Invalid address format: {cfg.address}")
     port = int(parts[1])
 
-    if parts[0] != "127.0.0.1":
+    if parts[0] != "127.0.0.1" and parts[0] != 'localhost':
         print(f"Ignorando o host {parts[0]}, assumindo que é um host remoto")
         return
 
     print(f"--- Iniciando Roteador {cfg.name} ---")
-    print(f"Endereço: 127.0.0.1:{port}")
+    print(f"Endereço: {cfg.address}")
     print(f"Rede Local: {cfg.network}")
     print(f"Vizinhos Diretos: {list(map(lambda x: x['address'], cfg.neighbors))}")
 
     app = Flask(cfg.name)
     router_instance = Router(cfg, update_interval, split_horizon, fail_protection)
+    if start_disabled:
+        router_instance.is_active = False
 
     @app.route("/routes", methods=["GET"])
     def get_routes():
@@ -55,6 +57,10 @@ def create_app(cfg: RouterConfig, update_interval=1, use_cli=False, split_horizo
         state = "LIGADO" if router_instance.is_active else "DESLIGADO"
         router_instance.log(f"Status alterado para {state} via API")
         return {"status": "success", "is_active": router_instance.is_active}, 200
+
+    @app.route("/status", methods=["GET"])
+    def status():
+        return {"name": router_instance.name, "is_active": router_instance.is_active}, 200
 
     @app.route("/receive_update", methods=["POST"])
     def receive_update():
@@ -71,7 +77,7 @@ if __name__ == "__main__":
     args = parse_args()
     if args.is_filled():
         router = args.to_router_config()
-        create_app(router, args.interval, args.cli, args.split_horizon, args.fail_protection)
+        create_app(router, args.interval, args.cli, args.split_horizon, args.fail_protection, args.start_disabled)
         print("Finalizando o servidor")
         exit(0)
 
@@ -90,7 +96,7 @@ if __name__ == "__main__":
 
     processes = []
     for router in network.routers:
-        p = Process(target=create_app, args=(router, args.interval, args.cli, args.split_horizon, args.fail_protection))
+        p = Process(target=create_app, args=(router, args.interval, args.cli, args.split_horizon, args.fail_protection, args.start_disabled))
         p.daemon = True # To ensure they exit if main crashes
         p.start()
         processes.append(p)
@@ -100,8 +106,12 @@ if __name__ == "__main__":
     
     try:
         if args.cli:
-            # Inicia a interface CLI passando o controle pro terminal interativo
-            cli_main()
+            # Monta lista de roteadores para a CLI a partir da config já parseada
+            routers_for_cli = [
+                {"name": r.name, "address": r.address, "network": r.network}
+                for r in network.routers
+            ]
+            cli_main(routers_for_cli)
         else:
             print("\nRoteadores operando em background via daemon.")
             print("Pressione Ctrl+C para encerrar todos.")

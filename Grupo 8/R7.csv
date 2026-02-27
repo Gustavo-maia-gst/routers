@@ -1,2 +1,2 @@
 neighbor_address,cost
-192.168.0.3:5000,12
+localhost:5002,12

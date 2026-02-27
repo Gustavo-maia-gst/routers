@@ -5,25 +5,37 @@ import subprocess
 import sys
 import tempfile
 
-def get_routers():
-    # Attempt to load configurations to know where routers are running
-    config_path = "example_network/network.json"
-    if not os.path.exists(config_path):
-        print(f"Erro: {config_path} não encontrado.")
-        return []
+# ANSI color codes
+GREEN = "\033[92m"
+RED = "\033[91m"
+YELLOW = "\033[93m"
+RESET = "\033[0m"
+BOLD = "\033[1m"
 
+def get_router_status(address):
+    """Consulta o endpoint /status para verificar se o roteador está ativo."""
     try:
-        with open(config_path) as f:
-            return json.load(f)
-    except Exception as e:
-        print(f"Erro ao ler {config_path}: {e}")
-        return []
+        res = requests.get(f"http://{address}/status", timeout=2)
+        if res.status_code == 200:
+            data = res.json()
+            return data.get("is_active", False)
+    except requests.exceptions.RequestException:
+        pass
+    return None  # Unreachable
+
+def print_router_list(routers):
+    """Exibe a lista de roteadores com status colorido."""
+    for i, r in enumerate(routers):
+        status = get_router_status(r['address'])
+        if status is None:
+            tag = f"{RED}UNREACHABLE{RESET}"
+        elif status:
+            tag = f"{GREEN}ON{RESET}"
+        else:
+            tag = f"{RED}OFF{RESET}"
+        print(f"  {i+1}. {r['name']} ({r['address']}) - {r['network']} [{tag}]")
 
 def prompt_router(routers):
-    print("\nRoteadores disponíveis:")
-    for i, r in enumerate(routers):
-        print(f"{i+1}. {r['name']} ({r['address']})")
-    
     choice = input("\nEscolha um roteador (número) ou 'c' para cancelar: ")
     if choice.lower() == 'c':
         return None
@@ -141,49 +153,83 @@ def toggle_router(routers):
     except requests.exceptions.RequestException as e:
         print(f"Erro de conexão ao acessar o roteador: {e}")
 
-def view_logs():
+def view_logs(routers):
     log_file = os.path.join(tempfile.gettempdir(), "router_logs", "global_routers.log")
     if not os.path.exists(log_file):
         print(f"\n[!] Arquivo de log '{log_file}' não encontrado.")
         print("Talvez a rede não tenha inicializado ou gerado logs ainda.")
         return
     
-    # Executa o less no arquivo para termos navegação igual ao vim
-    try:
-         subprocess.run(["less", log_file])
-    except FileNotFoundError:
-         print("Comando 'less' não encontrado no sistema. Fallback para visualização a granel:")
-         with open(log_file, 'r') as f:
-              print(f.read())
+    choice = input("Filtrar por roteador? (número ou Enter para todos): ").strip()
+    
+    filter_name = None
+    if choice:
+        try:
+            idx = int(choice) - 1
+            if 0 <= idx < len(routers):
+                filter_name = routers[idx]['name']
+            else:
+                print("Número inválido. Mostrando todos.")
+        except ValueError:
+            print("Entrada inválida. Mostrando todos.")
+
+    if filter_name:
+        # Filtra as linhas e abre com less via pipe
+        with open(log_file, 'r') as f:
+            filtered = [line for line in f if f"[{filter_name}(" in line]
+        
+        if not filtered:
+            print(f"Nenhum log encontrado para {filter_name}.")
+            return
+        
+        # Escreve num arquivo temporário e abre com less
+        tmp_filtered = os.path.join(tempfile.gettempdir(), "router_logs", "filtered.log")
+        with open(tmp_filtered, 'w') as f:
+            f.writelines(filtered)
+        try:
+            subprocess.run(["less", tmp_filtered])
+        except FileNotFoundError:
+            print("".join(filtered))
+    else:
+        try:
+            subprocess.run(["less", log_file])
+        except FileNotFoundError:
+            print("Comando 'less' não encontrado no sistema. Fallback:")
+            with open(log_file, 'r') as f:
+                print(f.read())
               
-def main():
-    routers = get_routers()
+def main(routers):
     if not routers:
         print("Nenhum roteador encontrado. Abortando CLI.")
         sys.exit(1)
         
     while True:
-        print("\n" + "="*40)
-        print("          🌐 ROUTER CLI TOOL")
-        print("="*40)
-        print("1. Consultar Tabela de Roteamento")
-        print("2. Enviar Pacote (Send)")
-        print("3. Visualizar Todos os Logs (Visão Vim)")
-        print("4. Ligar/Desligar Roteador (Simular Queda)")
-        print("5. Sair")
-        print("="*40)
+        print("\n" + "="*50)
+        print("            ROUTER CLI TOOL")
+        print("="*50)
+        print_router_list(routers)
+        print("-"*50)
+        print("  A. Consultar Tabela de Roteamento")
+        print("  B. Enviar Pacote (Send)")
+        print("  C. Visualizar Todos os Logs")
+        print("  D. Ligar/Desligar Roteador (Simular Queda)")
+        print("  Q. Sair")
+        print("="*50)
         
-        choice = input("Selecione uma opção [1-5]: ")
+        choice = input("Selecione uma opção: ").strip().lower()
         
-        if choice == '1':
+        if choice == 'a' or choice == '1':
             view_routing_table(routers)
-        elif choice == '2':
+            input("\nPressione Enter para voltar ao menu...")
+        elif choice == 'b' or choice == '2':
             send_packet(routers)
-        elif choice == '3':
-            view_logs()
-        elif choice == '4':
+            input("\nPressione Enter para voltar ao menu...")
+        elif choice == 'c' or choice == '3':
+            view_logs(routers)
+        elif choice == 'd' or choice == '4':
             toggle_router(routers)
-        elif choice == '5' or choice.lower() == 'q':
+            input("\nPressione Enter para voltar ao menu...")
+        elif choice == 'q' or choice == '5':
             print("Encerrando CLI...")
             break
         else:

@@ -1,74 +1,74 @@
 [
     {
         "name": "R1",
-        "network": "10.0.1.0/24",
-        "address": "192.168.0.1:5000",
+        "network": "10.0.0.0/24",
+        "address": "localhost:5000",
         "config_file": "Grupo 8/R1.csv"
     },
     {
         "name": "R2",
-        "network": "10.0.2.0/24",
-        "address": "192.168.0.2:5000",
+        "network": "10.0.8.0/23",
+        "address": "localhost:5001",
         "config_file": "Grupo 8/R2.csv"
     },
     {
         "name": "R3",
-        "network": "10.0.3.0/24",
-        "address": "192.168.0.3:5000",
+        "network": "10.0.16.0/23",
+        "address": "localhost:5002",
         "config_file": "Grupo 8/R3.csv"
     },
     {
         "name": "R4",
-        "network": "10.0.4.0/24",
-        "address": "192.168.0.4:5000",
+        "network": "10.0.20.0/23",
+        "address": "localhost:5003",
         "config_file": "Grupo 8/R4.csv"
     },
     {
         "name": "R5",
-        "network": "10.0.5.0/24",
-        "address": "192.168.0.5:5000",
+        "network": "10.0.10.0/24",
+        "address": "localhost:5004",
         "config_file": "Grupo 8/R5.csv"
     },
     {
         "name": "R6",
-        "network": "10.0.6.0/24",
-        "address": "192.168.0.6:5000",
+        "network": "10.0.12.0/23",
+        "address": "localhost:5005",
         "config_file": "Grupo 8/R6.csv"
     },
     {
         "name": "R7",
-        "network": "10.0.7.0/24",
-        "address": "192.168.0.7:5000",
+        "network": "10.0.18.0/24",
+        "address": "localhost:5006",
         "config_file": "Grupo 8/R7.csv"
     },
     {
         "name": "R8",
-        "network": "10.0.8.0/24",
-        "address": "192.168.0.8:5000",
+        "network": "10.0.19.0/24",
+        "address": "localhost:5007",
         "config_file": "Grupo 8/R8.csv"
     },
     {
         "name": "R9",
-        "network": "10.0.9.0/24",
-        "address": "192.168.0.9:5000",
+        "network": "10.0.22.0/24",
+        "address": "localhost:5008",
         "config_file": "Grupo 8/R9.csv"
     },
     {
         "name": "R10",
-        "network": "10.0.10.0/24",
-        "address": "192.168.0.10:5000",
+        "network": "10.0.23.0/24",
+        "address": "localhost:5009",
         "config_file": "Grupo 8/R10.csv"
     },
     {
         "name": "R11",
         "network": "10.0.11.0/24",
-        "address": "192.168.0.11:5000",
+        "address": "localhost:5010",
         "config_file": "Grupo 8/R11.csv"
     },
     {
         "name": "R12",
-        "network": "10.0.12.0/24",
-        "address": "192.168.0.12:5000",
+        "network": "10.0.14.0/23",
+        "address": "localhost:5011",
         "config_file": "Grupo 8/R12.csv"
     }
 ]

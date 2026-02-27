@@ -13,6 +13,7 @@ class Args:
     cli: bool
     split_horizon: bool
     fail_protection: bool
+    start_disabled: bool
 
     def is_filled(self) -> bool:
         return (
@@ -24,6 +25,8 @@ class Args:
             raise ValueError("Missing required arguments")
 
         neighbors = read_neighbors(self.file)
+        neighbors = list(map(lambda x: {"address": x[0], "cost": x[1], "network": x[0]}, neighbors))
+
         return RouterConfig(
             "Router A", self.network, f"127.0.0.1:{self.port}", neighbors
         )
@@ -34,7 +37,7 @@ def parse_args() -> Args:
     parser.add_argument(
         "--interval",
         type=int,
-        default=10,
+        default=5,
         help="Intervalo de atualização periódica em segundos.",
     )
     parser.add_argument(
@@ -55,6 +58,12 @@ def parse_args() -> Args:
         dest="fail_protection",
         default=True,
         help="Desativa mecanismos de proteção de falhas (implicit withdrawal e infinity cost).",
+    )
+    parser.add_argument(
+        "--start-disabled",
+        action="store_true",
+        default=False,
+        help="Inicia todos os roteadores desativados (offline). Ative-os manualmente via CLI.",
     )
 
     parser.add_argument(

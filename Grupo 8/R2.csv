@@ -1,4 +1,4 @@
 neighbor_address,cost
-192.168.0.1:5000,10
-192.168.0.5:5000,5
-192.168.0.6:5000,8
+localhost:5000,10
+localhost:5004,5
+localhost:5005,8

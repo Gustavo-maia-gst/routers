@@ -269,8 +269,9 @@ class Router:
             payload = {
                 "sender_address": self.address,
                 "routing_table": {
-                     net: {"cost": info["cost"]} 
-                     for net, info in summarized_table.items() 
+                     net: {"cost": info["cost"], "next_hop": info["next_hop"]} 
+                     for net, info in summarized_table.items()
+                     if info["cost"] != float('inf')
                 }
             }
 
