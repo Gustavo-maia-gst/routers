@@ -101,8 +101,14 @@ def send_packet(routers):
             "destination": dest,
             "payload": payload
         }
-        res = requests.post(url, json=payload_data, timeout=5)
-        response_json = res.json()
+        res = requests.post(url, json=payload_data, timeout=10)
+        
+        try:
+            response_json = res.json()
+        except Exception:
+            print(f"\n[-] Resposta inesperada do roteador (HTTP {res.status_code}): {res.text[:200]}")
+            return
+        
         trace_id = response_json.get("trace_id", "DESCONHECIDO")
         
         if res.status_code == 200:

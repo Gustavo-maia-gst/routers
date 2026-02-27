@@ -13,12 +13,15 @@ from config_reader import RouterConfig
 
 class Router:
     def log(self, s: str):
-        msg = f"[{self.name}({self.address})] - {s}"
-        print(msg)
+        prefix = f"[{self.name}({self.address})]"
+        lines = s.split("\n")
         log_dir = os.path.join(tempfile.gettempdir(), "router_logs")
         os.makedirs(log_dir, exist_ok=True)
         with open(os.path.join(log_dir, "global_routers.log"), "a") as f:
-            f.write(msg + "\n")
+            for line in lines:
+                msg = f"{prefix} - {line}"
+                print(msg)
+                f.write(msg + "\n")
 
     def __init__(self, cfg: RouterConfig, update_interval=1, split_horizon=True, fail_protection=True):
         self.name = cfg.name
@@ -284,21 +287,33 @@ class Router:
                 self.log(f"Não foi possível conectar ao vizinho {neighbor}. Erro: {e}")
                 self._handle_neighbor_down(neighbor["address"])
 
+
     def _find_route(self, destination: str):
          dest_ip = destination.split('/')[0] if '/' in destination else destination
-         dest_bin = self._ip_to_bin(dest_ip)
+         try:
+             dest_int = self.ip_to_int(dest_ip)
+         except Exception:
+             return None, None
          
          best_match = None
          best_prefix_len = -1
          best_route = None
 
          for net_str, info in self.routing_table.items():
+             if net_str == "localhost" or ":" in net_str:
+                 continue # Ignore direct neighbor addresses in routing table
              net_ip, net_mask = net_str.split('/')
              net_mask = int(net_mask)
-             net_bin = self._ip_to_bin(net_ip)
+             try:
+                 net_int = self.ip_to_int(net_ip)
+             except Exception:
+                 continue
+             
+             # Calculate subnet mask (e.g., /24 -> 0xFFFFFF00)
+             mask_int = (0xFFFFFFFF << (32 - net_mask)) & 0xFFFFFFFF
              
              # Check if the destination matches the network prefix
-             if dest_bin[:net_mask] == net_bin[:net_mask]:
+             if (dest_int & mask_int) == (net_int & mask_int):
                  if net_mask > best_prefix_len:
                      best_prefix_len = net_mask
                      best_match = net_str
@@ -336,10 +351,14 @@ class Router:
         
         dest_ip = destination.split('/')[0] if '/' in destination else destination
         
-        my_net_bin = self._ip_to_bin(my_net_ip)
-        dest_bin = self._ip_to_bin(dest_ip)
+        try:
+            my_net_int = self.ip_to_int(my_net_ip)
+            dest_int = self.ip_to_int(dest_ip)
+            mask_int = (0xFFFFFFFF << (32 - my_net_mask)) & 0xFFFFFFFF
+        except Exception:
+             return jsonify({"error": f"IP inválido", "trace_id": trace_id}), 400
 
-        if dest_bin[:my_net_mask] == my_net_bin[:my_net_mask]:
+        if (dest_int & mask_int) == (my_net_int & mask_int):
              self.log(f"[TRACE_ID: {trace_id}] Pacote alcançou a rede destino local: {message}")
              return jsonify({
                  "status": "success", 
@@ -360,8 +379,12 @@ class Router:
         url = f"http://{next_hop}/send"
         self.log(f"[TRACE_ID: {trace_id}] Encaminhando pacote via Next Hop {next_hop}")
         try:
-             res = requests.post(url, json=payload, timeout=5)
-             return jsonify(res.json()), res.status_code
+             res = requests.post(url, json=payload, timeout=10)
+             try:
+                 return jsonify(res.json()), res.status_code
+             except Exception:
+                 self.log(f"[TRACE_ID: {trace_id}] Resposta não-JSON do next hop {next_hop}")
+                 return jsonify({"error": "Resposta inválida do next hop", "trace_id": trace_id}), 502
         except requests.exceptions.RequestException as e:
              self.log(f"[TRACE_ID: {trace_id}] Erro de conexão ao encaminhar pacote para {next_hop}: {e}")
              return jsonify({"error": "Timeout ao encaminhar pacote", "trace_id": trace_id}), 500
