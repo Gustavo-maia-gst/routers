@@ -83,6 +83,9 @@ if __name__ == "__main__":
 
     network = read_network_config(args.file)
 
+    print('SPLITHORIZON', args.split_horizon)
+    print('FAILPROTECTION', args.fail_protection)
+
     print("Iniciando os roteadores locais")
     print(f"Intervalo de Atualização: {args.interval}s")
 
@@ -97,7 +100,6 @@ if __name__ == "__main__":
     processes = []
     for router in network.routers:
         p = Process(target=create_app, args=(router, args.interval, args.cli, args.split_horizon, args.fail_protection, args.start_disabled))
-        p.daemon = True # To ensure they exit if main crashes
         p.start()
         processes.append(p)
 

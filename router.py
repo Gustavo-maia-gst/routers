@@ -33,6 +33,8 @@ class Router:
         self.fail_protection = fail_protection
         self.is_active = True
 
+        print(self.neighbors)
+
         self.routing_table = {}
         self.routing_table[self.my_network] = {"cost": 0, "next_hop": self.address}
         for n in cfg.neighbors:
@@ -133,11 +135,8 @@ class Router:
             should_update_route = (
                 # não existe essa rota ainda
                 current_routing is None
-                or (
-                    # existe indo para o sender porém o cost mudou
-                    current_routing["next_hop"] == sender_address
-                    and current_routing["cost"] != cost + data["cost"]
-                )
+                # o caminho atual passa pelo next_hop
+                or current_routing["next_hop"] == sender_address
                 # o custo atual é maior do que o novo caminho
                 or current_routing["cost"] > cost + data["cost"]
             )
@@ -225,8 +224,7 @@ class Router:
                     r1 = new_table[n1]
                     r2 = new_table[n2]
 
-                    # só sumariza se next hop igual
-                    if r1["next_hop"] != r2["next_hop"]:
+                    if self.split_horizon and r1["next_hop"] != r2["next_hop"]:
                         continue
 
                     merged = self.can_merge(n1, n2)
@@ -252,6 +250,11 @@ class Router:
     def _handle_neighbor_down(self, neighbor_address: str):
         """Seta o custo de rotas atravessando um vizinho inativo para infinito."""
         if not self.fail_protection:
+            new_rounting_table = dict()
+            for net, info in self.routing_table.items():
+                if info["next_hop"] != neighbor_address:
+                    new_rounting_table[net] = info
+            self.routing_table = new_rounting_table
             return
 
         has_changes = False
@@ -283,8 +286,8 @@ class Router:
                 res = requests.post(url, json=payload, timeout=5)
                 if res.status_code == 503:
                     raise requests.exceptions.RequestException("Serviço Indisponível (Router Offline)")
-            except requests.exceptions.RequestException as e:
-                self.log(f"Não foi possível conectar ao vizinho {neighbor}. Erro: {e}")
+            except:
+                self.log(f"Não foi possível conectar ao vizinho {neighbor}")
                 self._handle_neighbor_down(neighbor["address"])
 
 

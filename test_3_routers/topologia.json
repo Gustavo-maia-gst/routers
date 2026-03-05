@@ -1,0 +1,20 @@
+[
+    {
+        "name": "A",
+        "network": "10.0.1.0/24",
+        "address": "localhost:10001",
+        "config_file": "test_3_routers/A.csv"
+    },
+    {
+        "name": "B",
+        "network": "10.0.2.0/24",
+        "address": "localhost:10002",
+        "config_file": "test_3_routers/B.csv"
+    },
+    {
+        "name": "C",
+        "network": "10.0.3.0/24",
+        "address": "localhost:10003",
+        "config_file": "test_3_routers/C.csv"
+    }
+]
