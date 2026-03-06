@@ -19,7 +19,6 @@ def create_app(cfg: RouterConfig, update_interval=1, use_cli=False, split_horizo
     import os
     import tempfile
     
-    # Redirecionar stdout e stderr desse processo inteiro para o arquivo de log global
     if use_cli:
         log_dir = os.path.join(tempfile.gettempdir(), "router_logs")
         os.makedirs(log_dir, exist_ok=True)
@@ -32,10 +31,6 @@ def create_app(cfg: RouterConfig, update_interval=1, use_cli=False, split_horizo
     if len(parts) != 2 or not parts[1].isdigit():
         raise ValueError(f"Invalid address format: {cfg.address}")
     port = int(parts[1])
-
-    if parts[0] != "127.0.0.1" and parts[0] != 'localhost':
-        print(f"Ignorando o host {parts[0]}, assumindo que é um host remoto")
-        return
 
     print(f"--- Iniciando Roteador {cfg.name} ---")
     print(f"Endereço: {cfg.address}")
@@ -92,7 +87,6 @@ if __name__ == "__main__":
     import tempfile
     import os
     
-    # Limpa logs anteriores
     log_file = os.path.join(tempfile.gettempdir(), "router_logs", "global_routers.log")
     if os.path.exists(log_file):
         os.remove(log_file)
@@ -103,12 +97,10 @@ if __name__ == "__main__":
         p.start()
         processes.append(p)
 
-    # Dá um tempo para os Flasks subirem e ativarem as rotas
     time.sleep(1)
     
     try:
         if args.cli:
-            # Monta lista de roteadores para a CLI a partir da config já parseada
             routers_for_cli = [
                 {"name": r.name, "address": r.address, "network": r.network}
                 for r in network.routers
