@@ -46,7 +46,6 @@ class Router:
         self.log("Tabela de roteamento inicial router")
         self.log(json.dumps(self.routing_table, indent=4))
 
-        # Inicia o processo de atualização periódica em uma thread separada
         self._start_periodic_updates()
 
     def _start_periodic_updates(self):
@@ -83,7 +82,7 @@ class Router:
                 "my_network": self.my_network,
                 "my_address": self.address,
                 "update_interval": self.update_interval,
-                "routing_table": self.routing_table,  # Exibe a tabela de roteamento atual (a ser implementada)
+                "routing_table": self.routing_table,  
                 "summarized_table": sumarized_table,
             }
         )
@@ -118,7 +117,6 @@ class Router:
         cost = neighbor["cost"]
         has_changes = False
         
-        # Remove rotas que aprendemos deste vizinho mas que ele não anuncia mais (ex: foram sumarizadas)
         if self.fail_protection:
             routes_to_delete = []
             for net, info in self.routing_table.items():
@@ -133,24 +131,25 @@ class Router:
             current_routing = self.routing_table.get(net)
 
             should_update_route = (
-                # não existe essa rota ainda
                 current_routing is None
-                # o caminho atual passa pelo next_hop
                 or current_routing["next_hop"] == sender_address
-                # o custo atual é maior do que o novo caminho
                 or current_routing["cost"] > cost + data["cost"]
             )
 
-            # Se a rota vem com infinito e o sender é nosso next_hop atual, herdamos o infinito, a menos que seja para nós mesmos
             if data["cost"] == float('inf') and current_routing and current_routing["next_hop"] == sender_address and net != self.my_network:
                 should_update_route = True
                 
-            # Só atualiza a rota se não for atingir o infinito pra sempre (evita loop). 
-            # Mas permitiremos infinito explícito pra anunciar morte
             if should_update_route:
+                MAX_COST = 16
                 has_changes = True
-                # Propaga o infinito somando nada a ele pra não bugar float, ou soma o custo se for numérico
-                new_cost = float('inf') if data["cost"] == float('inf') else cost + data["cost"]
+
+                if data["cost"] >= MAX_COST:
+                    new_cost = MAX_COST
+                else:
+                    new_cost = cost + data["cost"]
+                    if new_cost >= MAX_COST:
+                        new_cost = MAX_COST
+
                 self.routing_table[net] = {
                     "cost": new_cost,
                     "next_hop": sender_address,
@@ -181,18 +180,16 @@ class Router:
         mask2 = int(mask2)
 
         if mask1 != mask2:
-            return None  # tamanhos diferentes
+            return None  
 
         base1 = self.ip_to_int(ip1)
         base2 = self.ip_to_int(ip2)
 
         size = 1 << (32 - mask1)
 
-        # precisam ser consecutivos
         if abs(base1 - base2) != size:
             return None
 
-        # bit que muda precisa ser exatamente o do prefixo
         diff = base1 ^ base2
         if diff != size:
             return None
@@ -304,7 +301,7 @@ class Router:
 
          for net_str, info in self.routing_table.items():
              if net_str == "localhost" or ":" in net_str:
-                 continue # Ignore direct neighbor addresses in routing table
+                 continue 
              net_ip, net_mask = net_str.split('/')
              net_mask = int(net_mask)
              try:
@@ -312,10 +309,8 @@ class Router:
              except Exception:
                  continue
              
-             # Calculate subnet mask (e.g., /24 -> 0xFFFFFF00)
              mask_int = (0xFFFFFFFF << (32 - net_mask)) & 0xFFFFFFFF
              
-             # Check if the destination matches the network prefix
              if (dest_int & mask_int) == (net_int & mask_int):
                  if net_mask > best_prefix_len:
                      best_prefix_len = net_mask
@@ -337,7 +332,6 @@ class Router:
         destination = payload.get("destination")
         message = payload.get("payload")
         
-        # Inject trace ID if it doesn't exist
         trace_id = payload.get("trace_id")
         if not trace_id:
             trace_id = str(uuid.uuid4())
@@ -348,7 +342,6 @@ class Router:
 
         self.log(f"[TRACE_ID: {trace_id}] Recebido pacote originado em {source} destinado a {destination}. Conteúdo: {message}")
 
-        # Check if it reached the final router's subnetwork
         my_net_ip, my_net_mask = self.my_network.split('/')
         my_net_mask = int(my_net_mask)
         
@@ -369,7 +362,6 @@ class Router:
                  "trace_id": trace_id
              }), 200
 
-        # Find the best route
         match, route = self._find_route(destination)
 
         if not route:
@@ -378,7 +370,6 @@ class Router:
 
         next_hop = route["next_hop"]
 
-        # Encaminha o pacote para o next hop
         url = f"http://{next_hop}/send"
         self.log(f"[TRACE_ID: {trace_id}] Encaminhando pacote via Next Hop {next_hop}")
         try:

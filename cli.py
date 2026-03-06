@@ -5,7 +5,6 @@ import subprocess
 import sys
 import tempfile
 
-# ANSI color codes
 GREEN = "\033[92m"
 RED = "\033[91m"
 YELLOW = "\033[93m"
@@ -118,9 +117,8 @@ def send_packet(routers):
             print(f"\n[-] Falha ao enviar! TRACE_ID: {trace_id}")
             print(f"Erro: {response_json}")
             
-        # Trazendo o trace interativo para dentro do send
         import time
-        time.sleep(0.5) # Tempo rápido para garantir as escritas nos logs
+        time.sleep(0.5) 
         trace_packet(trace_id)
             
     except requests.exceptions.RequestException as e:
@@ -180,7 +178,6 @@ def view_logs(routers):
             print("Entrada inválida. Mostrando todos.")
 
     if filter_name:
-        # Filtra as linhas e abre com less via pipe
         with open(log_file, 'r') as f:
             filtered = [line for line in f if f"[{filter_name}(" in line]
         
@@ -188,7 +185,6 @@ def view_logs(routers):
             print(f"Nenhum log encontrado para {filter_name}.")
             return
         
-        # Escreve num arquivo temporário e abre com less
         tmp_filtered = os.path.join(tempfile.gettempdir(), "router_logs", "filtered.log")
         with open(tmp_filtered, 'w') as f:
             f.writelines(filtered)
